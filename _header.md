@@ -1,19 +1,24 @@
-# terraform-azurerm-avm-template
+# avm-res-portal-dashboard
 
-This is a template repo for Terraform Azure Verified Modules.
+This module provides a generic way to create and manage an Azure portal dashboard resource. To use this module in your Terraform configuration, you'll need to provide values for the required variables.
 
-Things to do:
+## Features
 
-1. Set up a GitHub repo environment called `test`.
-1. Configure environment protection rule to ensure that approval is required before deploying to this environment.
-1. Create a user-assigned managed identity in your test subscription.
-1. Create a role assignment for the managed identity on your test subscription, use the minimum required role.
-1. Configure federated identity credentials on the user assigned managed identity. Use the GitHub environment.
-1. Search and update TODOs within the code and remove the TODO comments once complete.
+This is the Azure Portal Dashboard for the Azure Verified Modules library.  This module deploys the Azure portal dashboard by using json template files for dashboard definitions.  It leverages the AzureRM provider and sets a number of initial defaults to minimize the overall inputs for simple configurations.
 
-> [!IMPORTANT]
-> As the overall AVM framework is not GA (generally available) yet - the CI framework and test automation is not fully functional and implemented across all supported languages yet - breaking changes are expected, and additional customer feedback is yet to be gathered and incorporated. Hence, modules **MUST NOT** be published at version `1.0.0` or higher at this time.
-> 
-> All module **MUST** be published as a pre-release version (e.g., `0.1.0`, `0.1.1`, `0.2.0`, etc.) until the AVM framework becomes GA.
-> 
-> However, it is important to note that this **DOES NOT** mean that the modules cannot be consumed and utilized. They **CAN** be leveraged in all types of environments (dev, test, prod etc.). Consumers can treat them just like any other IaC module and raise issues or feature requests against them as they learn from the usage of the module. Consumers should also read the release notes for each version, if considering updating to a more recent version of a module to see if there are any considerations or breaking changes etc.
+## Example Usage
+
+Here is an example of how you can use this module in your Terraform configuration:
+
+```terraform
+module "portal_dashboard" {
+  source                  = "Azure/avm-res-portal-dashboard/azurerm"
+  location                = azurerm_resource_group.this.location
+  name                    = "portal-dashboard"
+  resource_group_name     = azurerm_resource_group.this.name
+  template_file_path      = "../templates/defaultDashboard.tpl"
+  template_file_variables = {}
+  enable_telemetry        = var.enable_telemetry # see variables.tf
+}
+```
+

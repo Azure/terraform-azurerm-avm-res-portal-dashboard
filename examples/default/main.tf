@@ -1,13 +1,9 @@
 terraform {
-  required_version = "~> 1.5"
+  required_version = "~> 1.7"
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.74"
-    }
-    modtm = {
-      source  = "azure/modtm"
-      version = "~> 0.3"
+      version = "~> 3.110"
     }
     random = {
       source  = "hashicorp/random"
@@ -53,11 +49,12 @@ resource "azurerm_resource_group" "this" {
 # with a data source.
 module "test" {
   source = "../../"
-  # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
+  # source             = "Azure/avm-res-portal-dashboard/azurerm"
   # ...
-  location            = azurerm_resource_group.this.location
-  name                = "TODO" # TODO update with module.naming.<RESOURCE_TYPE>.name_unique
-  resource_group_name = azurerm_resource_group.this.name
-
-  enable_telemetry = var.enable_telemetry # see variables.tf
+  location                = azurerm_resource_group.this.location
+  name                    = "portal-dashboard"
+  resource_group_name     = azurerm_resource_group.this.name
+  template_file_path      = "./templates/defaultDashboard.tpl"
+  template_file_variables = {}
+  enable_telemetry        = var.enable_telemetry # see variables.tf
 }
