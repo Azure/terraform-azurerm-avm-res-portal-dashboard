@@ -1,5 +1,6 @@
 terraform {
   required_version = "~> 1.7"
+
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -49,12 +50,13 @@ resource "azurerm_resource_group" "this" {
 # with a data source.
 module "test" {
   source = "../../"
+
   # source             = "Azure/avm-res-portal-dashboard/azurerm"
   # ...
   location                = azurerm_resource_group.this.location
   name                    = "portal-dashboard"
   resource_group_name     = azurerm_resource_group.this.name
   template_file_path      = "./templates/defaultDashboard.tpl"
-  template_file_variables = {}
   enable_telemetry        = var.enable_telemetry # see variables.tf
+  template_file_variables = {}
 }
