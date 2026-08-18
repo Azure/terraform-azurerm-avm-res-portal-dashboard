@@ -27,6 +27,23 @@ The `resource_types.portal_dashboards` default is `Microsoft.Portal/dashboards@2
 
 API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `resource_types.portal_dashboards` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 
+## Upgrading from a version that used the AzureRM provider
+
+Earlier releases of this module managed the dashboard with `azurerm_portal_dashboard`. This release replaces it with `azapi_resource`, so existing state must be migrated.
+
+A Terraform `moved` block cannot be used for this migration. The `azapi` provider's move support derives the API version from its own embedded schema and selects `Microsoft.Portal/dashboards@2026-04-01`, which Azure Resource Manager does not currently serve — the newest version ARM accepts is `2025-04-01-preview`. The post-move refresh therefore fails with `NoRegisteredProviderFound`.
+
+Migrate the state manually instead, substituting your own module address and dashboard resource ID:
+
+```shell
+terraform state rm 'module.<name>.azurerm_portal_dashboard.dashboard'
+
+terraform import 'module.<name>.azapi_resource.this' \
+  '/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Portal/dashboards/<dashboard>?api-version=2019-01-01-preview'
+```
+
+The `?api-version=` suffix is required; it pins the imported resource to the same API version the module uses by default. After importing, `terraform plan` reports no destructive changes — the dashboard is updated in place and any newly configured `role_assignments` and `lock` resources are added.
+
 ## Example Usage
 
 Here is an example of how you can use this module in your Terraform configuration:

@@ -26,8 +26,3 @@ resource "azapi_resource" "this" {
     update = var.timeouts.update
   }
 }
-
-moved {
-  from = azurerm_portal_dashboard.dashboard
-  to   = azapi_resource.this
-}
