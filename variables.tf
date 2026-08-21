@@ -1,4 +1,3 @@
-# This is required for most resource modules
 variable "location" {
   type        = string
   description = "Azure region where the resource should be deployed."
@@ -43,16 +42,21 @@ DESCRIPTION
   nullable    = false
 }
 
-variable "tags" {
-  type        = map(string)
-  default     = null
-  description = "(Optional) Tags of the resource."
-}
-
-variable "template_file_variables" {
-  type        = map(string)
+variable "ignore_body_changes" {
+  type = object({
+    portal_dashboard = optional(list(string), [])
+  })
   default     = {}
-  description = "List of variables values mapping for variables defined in the dashboard template file."
+  description = <<DESCRIPTION
+Paths in each resource's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
+
+- `portal_dashboard` - Ignored body paths for the dashboard managed by this module. For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
+
+Paths use body-relative dot notation. Individual list indices cannot be targeted; ignore the whole property instead. While a path is ignored, configuration changes at that path are **not** sent to Azure until the path is removed from the list.
+
+Supplying a **non-empty** value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument held in provider-private state; changes take effect only after an `apply`. Leaving the list empty (the default) emits no argument, so the module remains usable on earlier Terraform versions.
+DESCRIPTION
+  nullable    = false
 }
 
 variable "lock" {
@@ -74,6 +78,52 @@ DESCRIPTION
     condition     = var.lock != null ? contains(["CanNotDelete", "ReadOnly"], var.lock.kind) : true
     error_message = "Lock kind must be either `\"CanNotDelete\"` or `\"ReadOnly\"`."
   }
+}
+
+variable "resource_types" {
+  type = object({
+    portal_dashboard = optional(string, "Microsoft.Portal/dashboards@2019-01-01-preview")
+    lock             = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+  })
+  default     = {}
+  description = <<DESCRIPTION
+Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
+
+- `portal_dashboard` - The portal dashboard itself.
+- `lock`             - Management lock applied to the dashboard.
+
+> Note: `portal_dashboard` deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+DESCRIPTION
+  nullable    = false
+}
+
+variable "retry" {
+  type = object({
+    error_message_regex  = optional(list(string))
+    interval_seconds     = optional(number)
+    max_interval_seconds = optional(number)
+  })
+  default     = null
+  description = <<DESCRIPTION
+Retry configuration applied to every `azapi` resource managed by the module (the dashboard, its lock, and role assignments). Defaults to `null` (no custom retry).
+
+- `error_message_regex`  - (Optional) A list of regex patterns matching error messages that trigger a retry. Defaults to `null`.
+- `interval_seconds`     - (Optional) Initial interval between retries in seconds. Defaults to `null` (provider default).
+- `max_interval_seconds` - (Optional) Maximum interval between retries in seconds. Defaults to `null` (provider default).
+
+See <https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource#retry> for full semantics.
+DESCRIPTION
+}
+
+variable "role_assignment_definition_lookup_enabled" {
+  type        = bool
+  default     = true
+  description = <<DESCRIPTION
+Whether the `Azure/avm-utl-interfaces/azure` module composed by the internal `role_assignments` submodule should resolve role definition names supplied via `role_definition_id_or_name` by querying the Azure Authorization API. Defaults to `true`.
+
+Set to `false` if you only ever supply fully-qualified role definition resource IDs (`/subscriptions/.../providers/Microsoft.Authorization/roleDefinitions/<guid>`) in `role_definition_id_or_name`. Disabling the lookup avoids the API call, which is useful in air-gapped or permission-restricted environments where the calling identity lacks `Microsoft.Authorization/roleDefinitions/read` at the parent scope.
+DESCRIPTION
+  nullable    = false
 }
 
 variable "role_assignments" {
@@ -115,67 +165,16 @@ DESCRIPTION
   }
 }
 
-variable "role_assignment_definition_lookup_enabled" {
-  type        = bool
-  default     = true
-  description = <<DESCRIPTION
-Whether the `Azure/avm-utl-interfaces/azure` module composed by the internal `role_assignments` submodule should resolve role definition names supplied via `role_definition_id_or_name` by querying the Azure Authorization API. Defaults to `true`.
-
-Set to `false` if you only ever supply fully-qualified role definition resource IDs (`/subscriptions/.../providers/Microsoft.Authorization/roleDefinitions/<guid>`) in `role_definition_id_or_name`. Disabling the lookup avoids the API call, which is useful in air-gapped or permission-restricted environments where the calling identity lacks `Microsoft.Authorization/roleDefinitions/read` at the parent scope.
-DESCRIPTION
-  nullable    = false
-}
-
-variable "resource_types" {
-  type = object({
-    portal_dashboard = optional(string, "Microsoft.Portal/dashboards@2019-01-01-preview")
-    lock             = optional(string, "Microsoft.Authorization/locks@2020-05-01")
-  })
-  default     = {}
-  description = <<DESCRIPTION
-Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
-
-- `portal_dashboard` - The portal dashboard itself.
-- `lock`             - Management lock applied to the dashboard.
-
-> Note: `portal_dashboard` deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
-DESCRIPTION
-  nullable    = false
-}
-
-variable "ignore_body_changes" {
-  type = object({
-    portal_dashboard = optional(list(string), [])
-  })
-  default     = {}
-  description = <<DESCRIPTION
-Paths in each resource's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
-
-- `portal_dashboard` - Ignored body paths for the dashboard managed by this module. For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
-
-Paths use body-relative dot notation. Individual list indices cannot be targeted; ignore the whole property instead. While a path is ignored, configuration changes at that path are **not** sent to Azure until the path is removed from the list.
-
-Supplying a **non-empty** value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument held in provider-private state; changes take effect only after an `apply`. Leaving the list empty (the default) emits no argument, so the module remains usable on earlier Terraform versions.
-DESCRIPTION
-  nullable    = false
-}
-
-variable "retry" {
-  type = object({
-    error_message_regex  = optional(list(string))
-    interval_seconds     = optional(number)
-    max_interval_seconds = optional(number)
-  })
+variable "tags" {
+  type        = map(string)
   default     = null
-  description = <<DESCRIPTION
-Retry configuration applied to every `azapi` resource managed by the module (the dashboard, its lock, and role assignments). Defaults to `null` (no custom retry).
+  description = "(Optional) Tags of the resource."
+}
 
-- `error_message_regex`  - (Optional) A list of regex patterns matching error messages that trigger a retry. Defaults to `null`.
-- `interval_seconds`     - (Optional) Initial interval between retries in seconds. Defaults to `null` (provider default).
-- `max_interval_seconds` - (Optional) Maximum interval between retries in seconds. Defaults to `null` (provider default).
-
-See <https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource#retry> for full semantics.
-DESCRIPTION
+variable "template_file_variables" {
+  type        = map(string)
+  default     = {}
+  description = "List of variables values mapping for variables defined in the dashboard template file."
 }
 
 variable "timeouts" {
