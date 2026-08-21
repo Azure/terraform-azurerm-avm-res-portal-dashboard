@@ -114,32 +114,24 @@ DESCRIPTION
   nullable    = false
 }
 
-variable "resource_types" {
-  type = object({
-    portal_dashboard = optional(string, "Microsoft.Portal/dashboards@2019-01-01-preview")
-    lock             = optional(string, "Microsoft.Authorization/locks@2020-05-01")
-  })
-  default     = {}
+variable "portal_dashboard_resource_type" {
+  type        = string
+  default     = "Microsoft.Portal/dashboards@2019-01-01-preview"
   description = <<DESCRIPTION
-Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
+The resource type, including API version, used for the portal dashboard. Defaults to `Microsoft.Portal/dashboards@2019-01-01-preview`.
 
-- `portal_dashboard` - The portal dashboard itself.
-- `lock`             - Management lock applied to the dashboard.
-
-> Note: `portal_dashboard` deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+> Note: this deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 DESCRIPTION
   nullable    = false
 }
 
 variable "ignore_body_changes" {
-  type = object({
-    portal_dashboard = optional(list(string), [])
-  })
-  default     = {}
+  type        = list(string)
+  default     = []
   description = <<DESCRIPTION
-(Optional) Paths in each resource's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
+Paths in the dashboard's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Defaults to `[]`. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
 
-- `portal_dashboard` - Ignored body paths for the dashboard managed by this module. For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
+For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
 
 Paths use body-relative dot notation. Individual list indices cannot be targeted; ignore the whole property instead. While a path is ignored, configuration changes at that path are **not** sent to Azure until the path is removed from the list.
 

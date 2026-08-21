@@ -117,16 +117,13 @@ module "this" {
     name = "lock-complete-example"
   }
 
-  # Pin the AzAPI resource types used by the module. These are the defaults;
-  # override them when targeting a sovereign cloud with older API versions.
+  # Pin the AzAPI resource type used by the module. This is the default;
+  # override it when targeting a sovereign cloud with older API versions.
   #
-  # Note: `portal_dashboard` must stay on an API version that models
-  # `properties.lenses` as a map. `2020-09-01-preview` and later model it as an
-  # array and require the template file to be converted.
-  resource_types = {
-    portal_dashboard = "Microsoft.Portal/dashboards@2019-01-01-preview"
-    lock             = "Microsoft.Authorization/locks@2020-05-01"
-  }
+  # Note: this must stay on an API version that models `properties.lenses` as a
+  # map. `2020-09-01-preview` and later model it as an array and require the
+  # template file to be converted.
+  portal_dashboard_resource_type = "Microsoft.Portal/dashboards@2019-01-01-preview"
 
   retry = {
     error_message_regex  = ["ReferencedResourceNotProvisioned"]
@@ -144,9 +141,7 @@ module "this" {
   # Left empty so Terraform continues to manage every body path. Set, for
   # example, `["properties.lenses"]` to let users rearrange tiles in the portal
   # without Terraform reverting them. A non-empty value requires Terraform 1.11+.
-  ignore_body_changes = {
-    portal_dashboard = []
-  }
+  ignore_body_changes = []
 }
 ```
 
@@ -207,10 +202,6 @@ Description: The name of the portal dashboard.
 ### <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id)
 
 Description: The ID of the portal dashboard.
-
-### <a name="output_role_assignments"></a> [role\_assignments](#output\_role\_assignments)
-
-Description: The role assignments created on the portal dashboard.
 
 ## Modules
 
