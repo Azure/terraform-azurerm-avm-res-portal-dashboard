@@ -57,7 +57,7 @@ module "test" {
   # ...
   location                = azapi_resource.rg.location
   name                    = "portal-dashboard"
-  resource_group_name     = azapi_resource.rg.name
+  parent_id               = azapi_resource.rg.id
   template_file_path      = "./templates/defaultDashboard.tpl"
   enable_telemetry        = var.enable_telemetry # see variables.tf
   template_file_variables = {}

@@ -17,19 +17,26 @@ The module implements the following AVM interfaces:
 
 ### Dashboard template API version
 
-The `resource_types.portal_dashboards` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
+The `resource_types.portal_dashboard` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
 
 ```json
 { "lenses": { "0": { "order": 0, "parts": { "0": { } } } } }
 ```
 
-API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `resource_types.portal_dashboards` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `resource_types.portal_dashboard` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 
 ## Upgrading from a version that used the AzureRM provider
 
-Earlier releases of this module managed the dashboard with `azurerm_portal_dashboard`. This release replaces it with `azapi_resource`, so existing state must be migrated.
+Earlier releases of this module managed the dashboard with `azurerm_portal_dashboard`, and took the parent resource group as `resource_group_name`. This release replaces the resource with `azapi_resource` and takes `parent_id` (the resource group's resource ID) instead, matching the AzAPI-native convention used by other migrated AVM modules.
 
-A Terraform `moved` block cannot be used for this migration. The `azapi` provider's move support derives the API version from its own embedded schema and selects `Microsoft.Portal/dashboards@2026-04-01`, which Azure Resource Manager does not currently serve — the newest version ARM accepts is `2025-04-01-preview`. The post-move refresh therefore fails with `NoRegisteredProviderFound`.
+Update the module call:
+
+```diff
+- resource_group_name = azurerm_resource_group.this.name
++ parent_id           = azurerm_resource_group.this.id
+```
+
+Existing state must also be migrated. A Terraform `moved` block cannot be used: the `azapi` provider's move support derives the API version from its own embedded schema and selects `Microsoft.Portal/dashboards@2026-04-01`, which Azure Resource Manager does not currently serve — the newest version ARM accepts is `2025-04-01-preview`. The post-move refresh therefore fails with `NoRegisteredProviderFound`. See [Azure/terraform-provider-azapi#1216](https://github.com/Azure/terraform-provider-azapi/issues/1216).
 
 Migrate the state manually instead, substituting your own module address and dashboard resource ID:
 
@@ -51,7 +58,7 @@ module "portal_dashboard" {
   source                  = "Azure/avm-res-portal-dashboard/azurerm"
   location                = azapi_resource.rg.location
   name                    = "portal-dashboard"
-  resource_group_name     = azapi_resource.rg.name
+  parent_id               = azapi_resource.rg.id
   template_file_path      = "../templates/defaultDashboard.tpl"
   template_file_variables = {}
   enable_telemetry        = var.enable_telemetry # see variables.tf
