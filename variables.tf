@@ -57,8 +57,9 @@ variable "template_file_variables" {
 
 variable "lock" {
   type = object({
-    name = optional(string, null)
-    kind = string
+    name  = optional(string, null)
+    kind  = string
+    notes = optional(string, null)
   })
   default     = null
   description = <<DESCRIPTION
@@ -66,6 +67,7 @@ Controls the management lock applied to the portal dashboard. Defaults to `null`
 
 - `kind` - (Required) The kind of lock to apply. Possible values are `CanNotDelete` and `ReadOnly`.
 - `name` - (Optional) The name of the lock. If not specified, a name will be generated.
+- `notes` - (Optional) Notes about the lock. Maps to `Microsoft.Authorization/locks.properties.notes`.
 DESCRIPTION
 
   validation {
@@ -76,6 +78,7 @@ DESCRIPTION
 
 variable "role_assignments" {
   type = map(object({
+    name                                   = optional(string, null)
     role_definition_id_or_name             = string
     principal_id                           = string
     description                            = optional(string, null)
@@ -89,6 +92,7 @@ variable "role_assignments" {
   description = <<DESCRIPTION
 A map of role assignments to create on the resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time. Defaults to `{}`.
 
+- `name` - (Optional) The name of the role assignment. If not set, a random UUID will be generated. Changing this forces the creation of a new resource.
 - `role_definition_id_or_name` - (Required) The ID or name of the role definition to assign to the principal.
 - `principal_id` - (Required) The ID of the principal to assign the role to.
 - `description` - (Optional) The description of the role assignment. Defaults to `null`.
@@ -101,6 +105,14 @@ A map of role assignments to create on the resource. The map key is deliberately
 > Note: There is no built-in Azure RBAC role specific to portal dashboards. Use the generic `Reader`, `Contributor` or `Owner` roles, or supply a custom role definition resource ID.
 DESCRIPTION
   nullable    = false
+
+  validation {
+    condition = alltrue([
+      for ra in var.role_assignments :
+      ra.name == null || can(regex("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", ra.name))
+    ])
+    error_message = "Each `role_assignments[*].name`, when supplied, must be a valid lowercase GUID (e.g. 11111111-1111-1111-1111-111111111111)."
+  }
 }
 
 variable "role_assignment_definition_lookup_enabled" {
@@ -114,24 +126,32 @@ DESCRIPTION
   nullable    = false
 }
 
-variable "portal_dashboard_resource_type" {
-  type        = string
-  default     = "Microsoft.Portal/dashboards@2019-01-01-preview"
+variable "resource_types" {
+  type = object({
+    portal_dashboard = optional(string, "Microsoft.Portal/dashboards@2019-01-01-preview")
+    lock             = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+  })
+  default     = {}
   description = <<DESCRIPTION
-The resource type, including API version, used for the portal dashboard. Defaults to `Microsoft.Portal/dashboards@2019-01-01-preview`.
+Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
 
-> Note: this deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+- `portal_dashboard` - The portal dashboard itself.
+- `lock`             - Management lock applied to the dashboard.
+
+> Note: `portal_dashboard` deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 DESCRIPTION
   nullable    = false
 }
 
 variable "ignore_body_changes" {
-  type        = list(string)
-  default     = []
+  type = object({
+    portal_dashboard = optional(list(string), [])
+  })
+  default     = {}
   description = <<DESCRIPTION
-Paths in the dashboard's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Defaults to `[]`. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
+Paths in each resource's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
 
-For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
+- `portal_dashboard` - Ignored body paths for the dashboard managed by this module. For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
 
 Paths use body-relative dot notation. Individual list indices cannot be targeted; ignore the whole property instead. While a path is ignored, configuration changes at that path are **not** sent to Azure until the path is removed from the list.
 

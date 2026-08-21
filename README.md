@@ -19,13 +19,13 @@ The module implements the following AVM interfaces:
 
 ### Dashboard template API version
 
-The `portal_dashboard_resource_type` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
+The `resource_types.portal_dashboard` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
 
 ```json
 { "lenses": { "0": { "order": 0, "parts": { "0": { } } } } }
 ```
 
-API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `portal_dashboard_resource_type` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `resource_types.portal_dashboard` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 
 ## Upgrading from a version that used the AzureRM provider
 
@@ -149,17 +149,23 @@ Default: `true`
 
 ### <a name="input_ignore_body_changes"></a> [ignore\_body\_changes](#input\_ignore\_body\_changes)
 
-Description: Paths in the dashboard's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Defaults to `[]`. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
+Description: Paths in each resource's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
 
-For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
+- `portal_dashboard` - Ignored body paths for the dashboard managed by this module. For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
 
 Paths use body-relative dot notation. Individual list indices cannot be targeted; ignore the whole property instead. While a path is ignored, configuration changes at that path are **not** sent to Azure until the path is removed from the list.
 
 Supplying a **non-empty** value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument held in provider-private state; changes take effect only after an `apply`. Leaving the list empty (the default) emits no argument, so the module remains usable on earlier Terraform versions.
 
-Type: `list(string)`
+Type:
 
-Default: `[]`
+```hcl
+object({
+    portal_dashboard = optional(list(string), [])
+  })
+```
+
+Default: `{}`
 
 ### <a name="input_lock"></a> [lock](#input\_lock)
 
@@ -167,27 +173,39 @@ Description: Controls the management lock applied to the portal dashboard. Defau
 
 - `kind` - (Required) The kind of lock to apply. Possible values are `CanNotDelete` and `ReadOnly`.
 - `name` - (Optional) The name of the lock. If not specified, a name will be generated.
+- `notes` - (Optional) Notes about the lock. Maps to `Microsoft.Authorization/locks.properties.notes`.
 
 Type:
 
 ```hcl
 object({
-    name = optional(string, null)
-    kind = string
+    name  = optional(string, null)
+    kind  = string
+    notes = optional(string, null)
   })
 ```
 
 Default: `null`
 
-### <a name="input_portal_dashboard_resource_type"></a> [portal\_dashboard\_resource\_type](#input\_portal\_dashboard\_resource\_type)
+### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
 
-Description: The resource type, including API version, used for the portal dashboard. Defaults to `Microsoft.Portal/dashboards@2019-01-01-preview`.
+Description: Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
 
-> Note: this deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+- `portal_dashboard` - The portal dashboard itself.
+- `lock`             - Management lock applied to the dashboard.
 
-Type: `string`
+> Note: `portal_dashboard` deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 
-Default: `"Microsoft.Portal/dashboards@2019-01-01-preview"`
+Type:
+
+```hcl
+object({
+    portal_dashboard = optional(string, "Microsoft.Portal/dashboards@2019-01-01-preview")
+    lock             = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+  })
+```
+
+Default: `{}`
 
 ### <a name="input_retry"></a> [retry](#input\_retry)
 
@@ -225,6 +243,7 @@ Default: `true`
 
 Description: A map of role assignments to create on the resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time. Defaults to `{}`.
 
+- `name` - (Optional) The name of the role assignment. If not set, a random UUID will be generated. Changing this forces the creation of a new resource.
 - `role_definition_id_or_name` - (Required) The ID or name of the role definition to assign to the principal.
 - `principal_id` - (Required) The ID of the principal to assign the role to.
 - `description` - (Optional) The description of the role assignment. Defaults to `null`.
@@ -240,6 +259,7 @@ Type:
 
 ```hcl
 map(object({
+    name                                   = optional(string, null)
     role_definition_id_or_name             = string
     principal_id                           = string
     description                            = optional(string, null)
@@ -298,10 +318,6 @@ The following outputs are exported:
 ### <a name="output_name"></a> [name](#output\_name)
 
 Description: The name of the portal dashboard.
-
-### <a name="output_resource"></a> [resource](#output\_resource)
-
-Description: The full portal dashboard azapi\_resource.
 
 ### <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id)
 

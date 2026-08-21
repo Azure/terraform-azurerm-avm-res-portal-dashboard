@@ -122,8 +122,8 @@ run "ignore_body_changes_defaults_to_empty" {
   command = apply
 
   assert {
-    condition     = length(var.ignore_body_changes) == 0
-    error_message = "`ignore_body_changes` must default to an empty list."
+    condition     = length(var.ignore_body_changes.portal_dashboard) == 0
+    error_message = "`ignore_body_changes.portal_dashboard` must default to an empty list."
   }
 }
 

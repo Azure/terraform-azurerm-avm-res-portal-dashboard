@@ -17,13 +17,13 @@ The module implements the following AVM interfaces:
 
 ### Dashboard template API version
 
-The `portal_dashboard_resource_type` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
+The `resource_types.portal_dashboard` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
 
 ```json
 { "lenses": { "0": { "order": 0, "parts": { "0": { } } } } }
 ```
 
-API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `portal_dashboard_resource_type` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `resource_types.portal_dashboard` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
 
 ## Upgrading from a version that used the AzureRM provider
 
