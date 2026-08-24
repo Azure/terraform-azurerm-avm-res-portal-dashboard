@@ -6,7 +6,50 @@ This module provides a generic way to create and manage an Azure portal dashboar
 
 ## Features
 
-This is the Azure Portal Dashboard for the Azure Verified Modules library.  This module deploys the Azure portal dashboard by using json template files for dashboard definitions.  It leverages the AzureRM provider and sets a number of initial defaults to minimize the overall inputs for simple configurations.
+This is the Azure Portal Dashboard for the Azure Verified Modules library.  This module deploys the Azure portal dashboard by using json template files for dashboard definitions.  It leverages the AzAPI provider and sets a number of initial defaults to minimize the overall inputs for simple configurations.
+
+The module implements the following AVM interfaces:
+
+- `role_assignments` - RBAC role assignments scoped to the dashboard.
+- `lock` - an optional `CanNotDelete` or `ReadOnly` management lock.
+- `tags` - resource tags. Use the `hidden-title` tag key to set a friendlier display title for the dashboard.
+
+> [!NOTE]
+> There is no built-in Azure RBAC role specific to portal dashboards. Use the generic `Reader`, `Contributor`, or `Owner` roles, or supply a custom role definition resource ID.
+
+### Dashboard template API version
+
+The `resource_types.portal_dashboard` default is `Microsoft.Portal/dashboards@2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index:
+
+```json
+{ "lenses": { "0": { "order": 0, "parts": { "0": { } } } } }
+```
+
+API version `2020-09-01-preview` and later model `lenses` and `parts` as **arrays** instead. If you override `resource_types.portal_dashboard` with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+
+## Upgrading from a version that used the AzureRM provider
+
+Earlier releases of this module managed the dashboard with `azurerm_portal_dashboard`, and took the parent resource group as `resource_group_name`. This release replaces the resource with `azapi_resource` and takes `parent_id` (the resource group's resource ID) instead, matching the AzAPI-native convention used by other migrated AVM modules.
+
+Update the module call:
+
+```diff
+- resource_group_name = azurerm_resource_group.this.name
++ parent_id           = azurerm_resource_group.this.id
+```
+
+Existing state must also be migrated. A Terraform `moved` block cannot be used: the `azapi` provider's move support derives the API version from its own embedded schema and selects `Microsoft.Portal/dashboards@2026-04-01`, which Azure Resource Manager does not currently serve — the newest version ARM accepts is `2025-04-01-preview`. The post-move refresh therefore fails with `NoRegisteredProviderFound`. See [Azure/terraform-provider-azapi#1216](https://github.com/Azure/terraform-provider-azapi/issues/1216).
+
+Migrate the state manually instead, substituting your own module address and dashboard resource ID:
+
+```shell
+terraform state rm 'module.<name>.azurerm_portal_dashboard.dashboard'
+
+terraform import 'module.<name>.azapi_resource.this' \
+  '/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Portal/dashboards/<dashboard>?api-version=2019-01-01-preview'
+```
+
+The `?api-version=` suffix is required; it pins the imported resource to the same API version the module uses by default. After importing, `terraform plan` reports no destructive changes — the dashboard is updated in place and any newly configured `role_assignments` and `lock` resources are added.
 
 ## Example Usage
 
@@ -15,12 +58,23 @@ Here is an example of how you can use this module in your Terraform configuratio
 ```terraform
 module "portal_dashboard" {
   source                  = "Azure/avm-res-portal-dashboard/azurerm"
-  location                = azurerm_resource_group.this.location
+  location                = azapi_resource.rg.location
   name                    = "portal-dashboard"
-  resource_group_name     = azurerm_resource_group.this.name
+  parent_id               = azapi_resource.rg.id
   template_file_path      = "../templates/defaultDashboard.tpl"
   template_file_variables = {}
   enable_telemetry        = var.enable_telemetry # see variables.tf
+
+  role_assignments = {
+    reader = {
+      role_definition_id_or_name = "Reader"
+      principal_id               = data.azapi_client_config.this.object_id
+    }
+  }
+
+  lock = {
+    kind = "CanNotDelete"
+  }
 }
 ```
 
@@ -29,25 +83,26 @@ module "portal_dashboard" {
 
 The following requirements are needed by this module:
 
-- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (~> 1.7)
+- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
 
-- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.4)
-
-- <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) (~> 3.110)
+- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.12)
 
 - <a name="requirement_modtm"></a> [modtm](#requirement\_modtm) (~> 0.3)
 
-- <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
+- <a name="requirement_random"></a> [random](#requirement\_random) (>= 3.5.0, < 4.0.0)
 
 ## Resources
 
 The following resources are used by this module:
 
-- [azurerm_portal_dashboard.dashboard](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/portal_dashboard) (resource)
-- [modtm_telemetry.telemetry](https://registry.terraform.io/providers/azure/modtm/latest/docs/resources/telemetry) (resource)
+- [azapi_resource.lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
-- [modtm_module_source.telemetry](https://registry.terraform.io/providers/azure/modtm/latest/docs/data-sources/module_source) (data source)
+- [azapi_client_config.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+- [modtm_module_source.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/data-sources/module_source) (data source)
 
 <!-- markdownlint-disable MD013 -->
 ## Required Inputs
@@ -66,9 +121,9 @@ Description: The name of the dashboard.
 
 Type: `string`
 
-### <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name)
+### <a name="input_parent_id"></a> [parent\_id](#input\_parent\_id)
 
-Description: The resource group where the resources will be deployed.
+Description: The Azure resource ID of the parent resource group, in the form `/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}`.
 
 Type: `string`
 
@@ -92,6 +147,132 @@ Type: `bool`
 
 Default: `true`
 
+### <a name="input_ignore_body_changes"></a> [ignore\_body\_changes](#input\_ignore\_body\_changes)
+
+Description: Paths in each resource's `body` whose changes the `azapi` provider ignores after creation, letting an out-of-band controller own those properties without producing perpetual `terraform plan` drift. Prefer Terraform's `lifecycle.ignore_changes` when the paths are static; use this variable when the paths must be derived from variables or other non-static values.
+
+- `portal_dashboard` - Ignored body paths for the dashboard managed by this module. For example, use `["properties.lenses"]` to let users rearrange dashboard tiles in the Azure portal without Terraform reverting them.
+
+Paths use body-relative dot notation. Individual list indices cannot be targeted; ignore the whole property instead. While a path is ignored, configuration changes at that path are **not** sent to Azure until the path is removed from the list.
+
+Supplying a **non-empty** value requires Terraform 1.11 or later, because `ignore_body_changes` is a write-only argument held in provider-private state; changes take effect only after an `apply`. Leaving the list empty (the default) emits no argument, so the module remains usable on earlier Terraform versions.
+
+Type:
+
+```hcl
+object({
+    portal_dashboard = optional(list(string), [])
+  })
+```
+
+Default: `{}`
+
+### <a name="input_lock"></a> [lock](#input\_lock)
+
+Description: Controls the management lock applied to the portal dashboard. Defaults to `null` (no lock).
+
+- `kind` - (Required) The kind of lock to apply. Possible values are `CanNotDelete` and `ReadOnly`.
+- `name` - (Optional) The name of the lock. If not specified, a name will be generated.
+- `notes` - (Optional) Notes about the lock. Maps to `Microsoft.Authorization/locks.properties.notes`.
+
+Type:
+
+```hcl
+object({
+    name  = optional(string, null)
+    kind  = string
+    notes = optional(string, null)
+  })
+```
+
+Default: `null`
+
+### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
+
+Description: Override the AzAPI `<provider>/<resource>@<api-version>` strings used by this module. Each key defaults to a tested value; supply only the keys you want to override. Useful when targeting a sovereign cloud with older API versions, or when opting into a newer preview API.
+
+- `portal_dashboard` - The portal dashboard itself.
+- `lock`             - Management lock applied to the dashboard.
+
+> Note: `portal_dashboard` deliberately defaults to `2019-01-01-preview`, which models `properties.lenses` as a **map** keyed by lens index (`"lenses": { "0": { ... } }`). API version `2020-09-01-preview` and later model `properties.lenses` as an **array**. If you override this value with a newer API version you must also convert your dashboard template file to the array form, otherwise the deployment will fail.
+
+Type:
+
+```hcl
+object({
+    portal_dashboard = optional(string, "Microsoft.Portal/dashboards@2019-01-01-preview")
+    lock             = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+  })
+```
+
+Default: `{}`
+
+### <a name="input_retry"></a> [retry](#input\_retry)
+
+Description: Retry configuration applied to every `azapi` resource managed by the module (the dashboard, its lock, and role assignments). Defaults to `null` (no custom retry).
+
+- `error_message_regex`  - (Optional) A list of regex patterns matching error messages that trigger a retry. Defaults to `null`.
+- `interval_seconds`     - (Optional) Initial interval between retries in seconds. Defaults to `null` (provider default).
+- `max_interval_seconds` - (Optional) Maximum interval between retries in seconds. Defaults to `null` (provider default).
+
+See <https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource#retry> for full semantics.
+
+Type:
+
+```hcl
+object({
+    error_message_regex  = optional(list(string))
+    interval_seconds     = optional(number)
+    max_interval_seconds = optional(number)
+  })
+```
+
+Default: `null`
+
+### <a name="input_role_assignment_definition_lookup_enabled"></a> [role\_assignment\_definition\_lookup\_enabled](#input\_role\_assignment\_definition\_lookup\_enabled)
+
+Description: Whether the `Azure/avm-utl-interfaces/azure` module composed by the internal `role_assignments` submodule should resolve role definition names supplied via `role_definition_id_or_name` by querying the Azure Authorization API. Defaults to `true`.
+
+Set to `false` if you only ever supply fully-qualified role definition resource IDs (`/subscriptions/.../providers/Microsoft.Authorization/roleDefinitions/<guid>`) in `role_definition_id_or_name`. Disabling the lookup avoids the API call, which is useful in air-gapped or permission-restricted environments where the calling identity lacks `Microsoft.Authorization/roleDefinitions/read` at the parent scope.
+
+Type: `bool`
+
+Default: `true`
+
+### <a name="input_role_assignments"></a> [role\_assignments](#input\_role\_assignments)
+
+Description: A map of role assignments to create on the resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time. Defaults to `{}`.
+
+- `name` - (Optional) The name of the role assignment. If not set, a random UUID will be generated. Changing this forces the creation of a new resource.
+- `role_definition_id_or_name` - (Required) The ID or name of the role definition to assign to the principal.
+- `principal_id` - (Required) The ID of the principal to assign the role to.
+- `description` - (Optional) The description of the role assignment. Defaults to `null`.
+- `skip_service_principal_aad_check` - (Optional) Retained for backwards compatibility with the legacy `azurerm` schema. Not honoured under AzAPI: the field is accepted but has no effect on the underlying role assignment. Defaults to `false`.
+- `condition` - (Optional) The condition which will be used to scope the role assignment. Defaults to `null`.
+- `condition_version` - (Optional) The version of the condition syntax. Valid value is `2.0`. Defaults to `null`.
+- `delegated_managed_identity_resource_id` - (Optional) The resource ID of the delegated managed identity. Defaults to `null`.
+- `principal_type` - (Optional) The type of principal. One of `User`, `Group`, `ServicePrincipal`, `ForeignGroup`, `Device`. Defaults to `null`.
+
+> Note: There is no built-in Azure RBAC role specific to portal dashboards. Use the generic `Reader`, `Contributor` or `Owner` roles, or supply a custom role definition resource ID.
+
+Type:
+
+```hcl
+map(object({
+    name                                   = optional(string, null)
+    role_definition_id_or_name             = string
+    principal_id                           = string
+    description                            = optional(string, null)
+    skip_service_principal_aad_check       = optional(bool, false)
+    condition                              = optional(string, null)
+    condition_version                      = optional(string, null)
+    delegated_managed_identity_resource_id = optional(string, null)
+    principal_type                         = optional(string, null)
+  }))
+```
+
+Default: `{}`
+
 ### <a name="input_tags"></a> [tags](#input\_tags)
 
 Description: (Optional) Tags of the resource.
@@ -108,21 +289,49 @@ Type: `map(string)`
 
 Default: `{}`
 
+### <a name="input_timeouts"></a> [timeouts](#input\_timeouts)
+
+Description: Default per-operation timeouts applied to every `azapi` resource managed by the module. Defaults to `null` (provider defaults). Each value is a Go duration string (e.g. `30m`, `1h`).
+
+- `create` - (Optional) Timeout for create operations. Defaults to `null`.
+- `read` - (Optional) Timeout for read operations. Defaults to `null`.
+- `update` - (Optional) Timeout for update operations. Defaults to `null`.
+- `delete` - (Optional) Timeout for delete operations. Defaults to `null`.
+
+Type:
+
+```hcl
+object({
+    create = optional(string)
+    read   = optional(string)
+    update = optional(string)
+    delete = optional(string)
+  })
+```
+
+Default: `null`
+
 ## Outputs
 
 The following outputs are exported:
 
-### <a name="output_dashboard"></a> [dashboard](#output\_dashboard)
+### <a name="output_name"></a> [name](#output\_name)
 
-Description: This is the full output for the resource.
+Description: The name of the portal dashboard.
 
 ### <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id)
 
-Description: The ID of the Azure portal dashboard resource.
+Description: The ID of the portal dashboard.
 
 ## Modules
 
-No modules.
+The following Modules are called:
+
+### <a name="module_avm_interfaces"></a> [avm\_interfaces](#module\_avm\_interfaces)
+
+Source: Azure/avm-utl-interfaces/azure
+
+Version: 0.6.0
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection
