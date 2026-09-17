@@ -46,4 +46,5 @@ module "this" {
   name               = "portal-dashboard"
   parent_id          = azapi_resource.resource_group.id
   template_file_path = "${path.module}/templates/defaultDashboard.tpl"
+  enable_telemetry   = false
 }
