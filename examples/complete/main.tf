@@ -46,7 +46,7 @@ module "this" {
   name               = "portal-dashboard-complete"
   parent_id          = azapi_resource.resource_group.id
   template_file_path = "${path.module}/templates/completeDashboard.tpl"
-  enable_telemetry   = false
+  enable_telemetry   = var.enable_telemetry
   # Left empty so Terraform continues to manage every body path. Set, for
   # example, `["properties.lenses"]` to let users rearrange tiles in the portal
   # without Terraform reverting them. A non-empty value requires Terraform 1.11+.
