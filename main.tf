@@ -1,7 +1,7 @@
 # AVM Interfaces module for locks and role assignments
 module "avm_interfaces" {
   source  = "Azure/avm-utl-interfaces/azure"
-  version = "0.6.0"
+  version = "0.7.0"
 
   enable_telemetry                          = var.enable_telemetry
   lock                                      = var.lock
