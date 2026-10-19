@@ -1,8 +1,9 @@
 # AVM Interfaces module for locks and role assignments
 module "avm_interfaces" {
   source  = "Azure/avm-utl-interfaces/azure"
-  version = "0.6.0"
+  version = "0.9.0"
 
+  location                                  = var.location
   enable_telemetry                          = var.enable_telemetry
   lock                                      = var.lock
   role_assignment_definition_lookup_enabled = var.role_assignment_definition_lookup_enabled

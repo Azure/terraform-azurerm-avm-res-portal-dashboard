@@ -7,9 +7,10 @@
 mock_provider "azapi" {
   mock_data "azapi_client_config" {
     defaults = {
-      subscription_id = "00000000-0000-0000-0000-000000000000"
-      tenant_id       = "00000000-0000-0000-0000-000000000001"
-      object_id       = "00000000-0000-0000-0000-000000000002"
+      subscription_id          = "00000000-0000-0000-0000-000000000000"
+      tenant_id                = "00000000-0000-0000-0000-000000000001"
+      object_id                = "00000000-0000-0000-0000-000000000002"
+      subscription_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000"
     }
   }
 
@@ -40,7 +41,7 @@ mock_provider "azapi" {
     }
   }
 }
-mock_provider "modtm" {}
+
 mock_provider "random" {}
 
 variables {
@@ -75,6 +76,10 @@ run "minimal_creates_only_the_dashboard" {
     condition     = length(azapi_resource.role_assignment) == 0
     error_message = "No role assignments should be created when `role_assignments` is empty."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # The template file must be decoded into the request body rather than embedded
@@ -90,6 +95,10 @@ run "template_file_is_decoded_into_body" {
   assert {
     condition     = can(azapi_resource.this.body.properties.lenses["0"].parts["0"])
     error_message = "`lenses` must remain a map keyed by lens index for the default API version."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -114,6 +123,10 @@ run "template_file_variables_are_substituted" {
     condition     = azapi_resource.this.body.properties.lenses["0"].parts["0"].metadata.settings.content.settings.subtitle == "unit-test-dashboard"
     error_message = "The module must always supply `name` to the template."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # `ignore_body_changes` collapses to null when empty so the write-only argument
@@ -124,6 +137,10 @@ run "ignore_body_changes_defaults_to_empty" {
   assert {
     condition     = length(var.ignore_body_changes.portal_dashboard) == 0
     error_message = "`ignore_body_changes.portal_dashboard` must default to an empty list."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -150,6 +167,10 @@ run "lock_is_created_when_requested" {
   assert {
     condition     = azapi_resource.lock[0].body.properties.level == "CanNotDelete"
     error_message = "The lock level must match the requested kind."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -184,6 +205,10 @@ run "role_assignments_are_scoped_to_the_dashboard" {
     condition     = azapi_resource.role_assignment["reader"].body.properties.principalId == "00000000-0000-0000-0000-000000000003"
     error_message = "The principal ID must be carried through to the role assignment body."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # `name` must be between 3 and 64 characters.
@@ -197,6 +222,10 @@ run "name_too_short_is_rejected" {
   expect_failures = [
     var.name,
   ]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "name_with_invalid_characters_is_rejected" {
@@ -209,6 +238,10 @@ run "name_with_invalid_characters_is_rejected" {
   expect_failures = [
     var.name,
   ]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # `parent_id` must be a resource group resource ID.
@@ -222,6 +255,10 @@ run "parent_id_must_be_a_resource_group" {
   expect_failures = [
     var.parent_id,
   ]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # `lock.kind` is constrained to the two supported values.
@@ -237,4 +274,8 @@ run "invalid_lock_kind_is_rejected" {
   expect_failures = [
     var.lock,
   ]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
